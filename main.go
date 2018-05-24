@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"strconv"
 	"strings"
+	"sort"
 )
 
 type Instance struct {
@@ -28,11 +29,33 @@ type State struct {
 	instances InstanceGroup
 }
 
-func (state State) getStateId() State {
+func (state State) makeId() State {
+	var arr []string
+	for _, instance := range state.instances {
+		arr = append(arr, instance.id)
+	}
+	sort.Strings(arr)
+	state.id = strings.Join(arr, "-")
 	return state
 }
 
-func (instance Instance) getInstaceId() Instance {
+func (state State) getSubSet(char string) InstanceGroup {
+	var result InstanceGroup
+	for _, instance := range state.instances {
+		if instance.getNextChar() == char {
+			newInst := Instance{
+				rule: instance.rule,
+				dot:  instance.dot + 1,
+			}.makeId()
+			if newInst.dot < len(newInst.rule.right) {
+				result = append(result, newInst)
+			}
+		}
+	}
+	return result
+}
+
+func (instance Instance) makeId() Instance {
 	instance.id = strconv.Itoa(instance.rule.id) + "." + strconv.Itoa(instance.dot)
 	return instance
 }
@@ -45,7 +68,7 @@ func (R Rule) makeInstance(index int) Instance {
 	return Instance{
 		rule: R,
 		dot:  index,
-	}.getInstaceId()
+	}.makeId()
 }
 
 func (R RuleGroup) findRulesFor(char string) RuleGroup {
@@ -58,8 +81,8 @@ func (R RuleGroup) findRulesFor(char string) RuleGroup {
 	return result
 }
 
-func (R InstanceGroup) containsInstance(I Instance) bool {
-	for _, r := range R {
+func (instances InstanceGroup) containsInstance(I Instance) bool {
+	for _, r := range instances {
 		if r == I {
 			return true
 		}
@@ -67,7 +90,7 @@ func (R InstanceGroup) containsInstance(I Instance) bool {
 	return false
 }
 
-func getFullState(instances []Instance, allRules RuleGroup) State {
+func (instances InstanceGroup) getFullState(allRules RuleGroup) State {
 
 	var result = State{
 		instances: instances,
@@ -91,18 +114,18 @@ func getFullState(instances []Instance, allRules RuleGroup) State {
 		}
 	}
 
-	return result.getStateId()
+	return result.makeId()
 }
 
 func getStateZero(allRules []Rule) State {
 	zeroInstance := Instance{
 		rule: allRules[0],
 		dot:  0,
-	}.getInstaceId()
+	}.makeId()
 
-	state := getFullState([]Instance{zeroInstance}, allRules)
+	state := InstanceGroup{zeroInstance}.getFullState(allRules)
 	fmt.Println(state)
-	return state
+	return state.makeId()
 }
 
 func readGrammar(file string) ([]string, []string, []Rule) {
@@ -139,12 +162,49 @@ func readGrammar(file string) ([]string, []string, []Rule) {
 	return NT, T, R
 }
 
+func makeSolver(NT []string, T []string, R []Rule) []State {
+	stateZero := getStateZero(R)
+	var states = map[string]State{stateZero.id: stateZero}
+	stack := make([]State, 1)
+	stack[0] = stateZero
 
+	var state State
+	for ; len(stack) > 0; {
+		state, stack = stack[0], stack[1:]
+		for _, char := range append(NT, T...) {
+			subset := state.getSubSet(char)
+			if len(subset) > 0 {
+				newState := subset.getFullState(R)
+				if _, ok := states[newState.id]; !ok {
+					states[newState.id] = newState
+					stack = append(stack, newState)
+				}
+			}
+		}
+
+	}
+
+	var keys []string
+	for k := range states {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var result []State
+	for _, k := range keys {
+		result = append(result, states[k])
+	}
+
+	return result
+}
 
 func main() {
 	NT, T, R := readGrammar("./in1.txt")
-	stateZero := getStateZero(R)
-	fmt.Println(NT, T, R, stateZero)
+	solver := makeSolver(NT, T, R)
+	fmt.Println(NT, T, R, "\n=========")
+	for _, state := range solver {
+		fmt.Println(state)
+	}
 }
 
 /* UTILS */
