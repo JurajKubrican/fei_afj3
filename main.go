@@ -8,18 +8,41 @@ import (
 	"strings"
 )
 
-type rule struct {
+type RuleInstance struct {
+	rule Rule
+	dot  int
+}
+
+type Rule struct {
+	id    int
 	left  string
 	right string
 }
 
-type state struct {
+type State struct {
 	id    string
-	rules map[rule]struct{}
+	rules map[string]RuleInstance
 }
 
-func getStateId(rules []rule) string(){
+func getRuleInstaceId(instacne RuleInstance) string {
+	return strconv.Itoa(instacne.rule.id) + "." + strconv.Itoa(instacne.dot);
+}
 
+//func getStateId(rules []rule) string(){
+//
+//}
+
+func getStateZero(rules []Rule) State {
+	var state State
+	for _, rule := range rules {
+		instance := RuleInstance{
+			rule: rule,
+			dot:  0,
+		}
+		instanceId := getRuleInstaceId(instance)
+		state.rules[instanceId] = instance
+	}
+	return state
 }
 
 func readLines(path string) ([]string, error) {
@@ -51,7 +74,7 @@ func writeLines(lines []string, path string) error {
 	return w.Flush()
 }
 
-func readGrammar(file string) ([]string, []string, []rule) {
+func readGrammar(file string) ([]string, []string, []Rule) {
 
 	lines, _ := readLines(file)
 	nNT, _ := strconv.Atoi(lines[0])
@@ -61,7 +84,7 @@ func readGrammar(file string) ([]string, []string, []rule) {
 	i := 3
 	var NT []string
 	var T []string
-	var R = []rule{{left: "1", right: "S"}}
+	var R = []Rule{{id: 0, left: "1", right: "S"}}
 
 	for ; i < 3+nNT; i++ {
 		NT = append(NT, lines[i])
@@ -71,13 +94,15 @@ func readGrammar(file string) ([]string, []string, []rule) {
 		T = append(T, lines[i])
 	}
 
-	for ; i < 3+nNT+nT+nR; i++ {
+	for id := 1; i < 3+nNT+nT+nR; i++ {
 		rLine := lines[i]
 		ruleData := strings.Split(rLine, "->")
-		R = append(R, rule{
+		R = append(R, Rule{
+			id:    id,
 			left:  ruleData[0],
 			right: ruleData[1],
 		})
+		id++
 	}
 
 	return NT, T, R
