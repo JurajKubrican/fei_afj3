@@ -8,7 +8,8 @@ import (
 	"strings"
 )
 
-type RuleInstance struct {
+type Instance struct {
+	id   string
 	rule Rule
 	dot  int
 }
@@ -19,59 +20,89 @@ type Rule struct {
 	right string
 }
 
+type RuleGroup []Rule
+type InstanceGroup []Instance
+
 type State struct {
-	id    string
-	rules map[string]RuleInstance
+	id        string
+	instances InstanceGroup
 }
 
-func getRuleInstaceId(instacne RuleInstance) string {
-	return strconv.Itoa(instacne.rule.id) + "." + strconv.Itoa(instacne.dot);
-}
-
-//func getStateId(rules []rule) string(){
-//
-//}
-
-func getStateZero(rules []Rule) State {
-	var state State
-	for _, rule := range rules {
-		instance := RuleInstance{
-			rule: rule,
-			dot:  0,
-		}
-		instanceId := getRuleInstaceId(instance)
-		state.rules[instanceId] = instance
-	}
+func (state State) getStateId() State {
 	return state
 }
 
-func readLines(path string) ([]string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return lines, scanner.Err()
+func (instance Instance) getInstaceId() Instance {
+	instance.id = strconv.Itoa(instance.rule.id) + "." + strconv.Itoa(instance.dot)
+	return instance
 }
 
-func writeLines(lines []string, path string) error {
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
+func (instance Instance) getNextChar() string {
+	return instance.rule.right[instance.dot : instance.dot+1]
+}
 
-	w := bufio.NewWriter(file)
-	for _, line := range lines {
-		fmt.Fprintln(w, line)
+func (R Rule) makeInstance(index int) Instance {
+	return Instance{
+		rule: R,
+		dot:  index,
+	}.getInstaceId()
+}
+
+func (R RuleGroup) findRulesFor(char string) RuleGroup {
+	var result RuleGroup
+	for _, r := range R {
+		if r.left == char {
+			result = append(result, r)
+		}
 	}
-	return w.Flush()
+	return result
+}
+
+func (R InstanceGroup) containsInstance(I Instance) bool {
+	for _, r := range R {
+		if r == I {
+			return true
+		}
+	}
+	return false
+}
+
+func getFullState(instances []Instance, allRules RuleGroup) State {
+
+	var result = State{
+		instances: instances,
+	}
+
+	stack := make([]string, 0)
+	for _, instance := range instances {
+		stack = append(stack, instance.getNextChar())
+	}
+
+	var char string
+	for ; len(stack) > 0; {
+		char, stack = stack[0], stack[1:]
+		for _, rule := range allRules.findRulesFor(char) {
+			tmpInstance := rule.makeInstance(0)
+			if !result.instances.containsInstance(tmpInstance) {
+				result.instances = append(result.instances, tmpInstance)
+				stack = append(stack, tmpInstance.getNextChar())
+			}
+
+		}
+	}
+
+	return result.getStateId()
+}
+
+func getStateZero(allRules []Rule) State {
+	zeroInstance := Instance{
+		rule: allRules[0],
+		dot:  0,
+	}.getInstaceId()
+
+	state := getFullState([]Instance{zeroInstance}, allRules)
+	fmt.Println(state)
+	return state
 }
 
 func readGrammar(file string) ([]string, []string, []Rule) {
@@ -108,9 +139,41 @@ func readGrammar(file string) ([]string, []string, []Rule) {
 	return NT, T, R
 }
 
+
+
 func main() {
 	NT, T, R := readGrammar("./in1.txt")
-	makeClassifier()
+	stateZero := getStateZero(R)
+	fmt.Println(NT, T, R, stateZero)
+}
 
-	fmt.Println(NT, T, R)
+/* UTILS */
+
+func readLines(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
+}
+
+func writeLines(lines []string, path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	w := bufio.NewWriter(file)
+	for _, line := range lines {
+		fmt.Fprintln(w, line)
+	}
+	return w.Flush()
 }
