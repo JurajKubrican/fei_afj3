@@ -47,7 +47,7 @@ func (state State) getSubSet(char string) InstanceGroup {
 				rule: instance.rule,
 				dot:  instance.dot + 1,
 			}.makeId()
-			if newInst.dot < len(newInst.rule.right) {
+			if newInst.dot <= len(newInst.rule.right) {
 				result = append(result, newInst)
 			}
 		}
@@ -61,7 +61,10 @@ func (instance Instance) makeId() Instance {
 }
 
 func (instance Instance) getNextChar() string {
-	return instance.rule.right[instance.dot : instance.dot+1]
+	if instance.dot < len(instance.rule.right) {
+		return string(instance.rule.right[instance.dot])
+	}
+	return ""
 }
 
 func (R Rule) makeInstance(index int) Instance {
@@ -78,6 +81,48 @@ func (R RuleGroup) findRulesFor(char string) RuleGroup {
 			result = append(result, r)
 		}
 	}
+	return result
+}
+
+func (R RuleGroup) first(inChar string) []string {
+	next := make(map[string]struct{})
+	stack := R.findRulesFor(inChar)
+	if len(stack) == 0 {
+		return []string{inChar}
+	}
+
+	var rule Rule
+	for ; len(stack) > 0; {
+		rule, stack = stack[0], stack[1:]
+		char := string(rule.right[0])
+		rules := R.findRulesFor(char)
+		if len(rules) == 0 {
+			next[char] = struct{}{}
+		} else {
+			stack = append(stack, rules...)
+		}
+	}
+	var result []string
+	for i := range next {
+		result = append(result, i)
+	}
+
+	return result
+}
+
+func (R RuleGroup) follow(inChar string) []string {
+	var result []string
+	if inChar == "S" {
+		result = append(result, "0")
+	}
+	for _, rule := range R {
+		for i, char := range rule.right {
+			if inChar == string(char) && len(rule.right) > i+1 {
+				result = append(result, R.first(string(rule.right[i+1]))...)
+			}
+		}
+	}
+
 	return result
 }
 
@@ -128,7 +173,7 @@ func getStateZero(allRules []Rule) State {
 	return state.makeId()
 }
 
-func readGrammar(file string) ([]string, []string, []Rule) {
+func readGrammar(file string) ([]string, []string, RuleGroup) {
 
 	lines, _ := readLines(file)
 	nNT, _ := strconv.Atoi(lines[0])
@@ -181,7 +226,6 @@ func makeSolver(NT []string, T []string, R []Rule) []State {
 				}
 			}
 		}
-
 	}
 
 	var keys []string
