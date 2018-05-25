@@ -23,10 +23,23 @@ type Rule struct {
 
 type RuleGroup []Rule
 type InstanceGroup []Instance
+type Solver map[string]State
+
+type Action struct {
+	goTo   string
+	action byte
+	reduce int
+}
 
 type State struct {
 	id        string
 	instances InstanceGroup
+	action    map[string]Action
+}
+
+func (S Solver) solve(str string) bool {
+
+	return true
 }
 
 func (state State) makeId() State {
@@ -37,6 +50,13 @@ func (state State) makeId() State {
 	sort.Strings(arr)
 	state.id = strings.Join(arr, "-")
 	return state
+}
+
+func (state State) isFinal() bool {
+	if len(state.instances) == 1 && len(state.instances[0].rule.right) == state.instances[0].dot+1 {
+		return true
+	}
+	return false
 }
 
 func (state State) getSubSet(char string) InstanceGroup {
@@ -110,17 +130,33 @@ func (R RuleGroup) first(inChar string) []string {
 	return result
 }
 
-func (R RuleGroup) follow(inChar string) []string {
-	var result []string
-	if inChar == "S" {
-		result = append(result, "0")
+func (R RuleGroup) follow(inChar string, done map[string]struct{}) []string {
+	if _, ok := done[inChar]; ok {
+		return make([]string, 0)
+	}
+	done[inChar] = struct{}{}
+
+	follow := make(map[string]struct{})
+	if inChar == "1" {
+		return []string{"0"}
 	}
 	for _, rule := range R {
 		for i, char := range rule.right {
 			if inChar == string(char) && len(rule.right) > i+1 {
-				result = append(result, R.first(string(rule.right[i+1]))...)
+				for _, val := range R.first(string(rule.right[i+1])) {
+					follow[val] = struct{}{}
+				}
+			} else if len(rule.right) == i+1 && char >= 'A' && char <= 'Z' {
+				//for _, val := range R.follow(rule.left, done) {
+				//	follow[val] = struct{}{}
+				//}
 			}
 		}
+	}
+
+	var result []string
+	for i := range follow {
+		result = append(result, i)
 	}
 
 	return result
@@ -139,6 +175,7 @@ func (instances InstanceGroup) getFullState(allRules RuleGroup) State {
 
 	var result = State{
 		instances: instances,
+		action:    make(map[string]Action),
 	}
 
 	stack := make([]string, 0)
@@ -207,44 +244,81 @@ func readGrammar(file string) ([]string, []string, RuleGroup) {
 	return NT, T, R
 }
 
-func makeSolver(NT []string, T []string, R []Rule) []State {
+func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 	stateZero := getStateZero(R)
-	var states = map[string]State{stateZero.id: stateZero}
+	var states = Solver{stateZero.id: stateZero}
 	stack := make([]State, 1)
 	stack[0] = stateZero
 
+	var err string
 	var state State
 	for ; len(stack) > 0; {
 		state, stack = stack[0], stack[1:]
-		for _, char := range append(NT, T...) {
+		for _, char := range append(append(NT, T...), "0") {
 			subset := state.getSubSet(char)
 			if len(subset) > 0 {
 				newState := subset.getFullState(R)
 				if _, ok := states[newState.id]; !ok {
-					states[newState.id] = newState
+
+					// GOTO / ACTION
+					var action byte
+					if char[0] >= 'A' && char[0] <= 'Z' {
+						action = 'N'
+					} else {
+						action = 'S'
+					}
+
+					if state.isFinal() {
+						for _, follow := range R.follow(state.instances[0].rule.left, make(map[string]struct{})) {
+							if val, ok := state.action[follow]; ok {
+								if val.action == 'R' {
+									return nil, "RR ERROR"
+								} else {
+									return nil, "SR ERROR"
+								}
+							}
+							state.action[follow] = Action{
+								reduce: state.instances[0].rule.id,
+								action: 'R',
+							}
+						}
+					}
+
+					state.action[char] = Action{
+						goTo:   newState.id,
+						action: action,
+					}
 					stack = append(stack, newState)
+					states[newState.id] = newState
 				}
 			}
 		}
 	}
 
-	var keys []string
-	for k := range states {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var result []State
-	for _, k := range keys {
-		result = append(result, states[k])
-	}
-
-	return result
+	return states, err
 }
 
 func main() {
-	NT, T, R := readGrammar("./in1.txt")
-	solver := makeSolver(NT, T, R)
+	NT, T, R := readGrammar("./in3.txt")
+	solver, err := makeSolver(NT, T, R)
+	if len(err) > 0 {
+		fmt.Println(err)
+	}
+
+	solver.solve("")
+
+	//fmt.Println( R.follow("1", make(map[string]struct{})))
+
+	fmt.Println("FOLLOW")
+	for _, val := range NT {
+		fmt.Println(val, R.follow(val, make(map[string]struct{})))
+	}
+	//
+	//fmt.Println("FIRST")
+	//for _, val := range NT {
+	//	fmt.Println(val, R.first(val))
+	//}
+
 	fmt.Println(NT, T, R, "\n=========")
 	for _, state := range solver {
 		fmt.Println(state)
