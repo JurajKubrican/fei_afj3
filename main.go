@@ -42,6 +42,27 @@ func (S Solver) solve(str string) bool {
 	return true
 }
 
+func (S Solver) print(NT []string, T []string) bool {
+	fmt.Print("[")
+	for _, char := range append(append(T, "0"), NT...) {
+		fmt.Print(" " + char + " ")
+	}
+	fmt.Println("]")
+	for _, state := range S {
+		table := make([]string, len(append(append(T, "0"), NT...)))
+		for ri, char := range append(append(T, "0"), NT...) {
+			if val, ok := state.action[char]; ok {
+				table[ri] = string(val.action) + strconv.Itoa(val.reduce) + val.goTo
+			} else {
+				table[ri] = " x "
+			}
+		}
+		fmt.Println(table)
+	}
+
+	return true
+}
+
 func (state State) makeId() State {
 	var arr []string
 	for _, instance := range state.instances {
@@ -130,26 +151,34 @@ func (R RuleGroup) first(inChar string) []string {
 	return result
 }
 
-func (R RuleGroup) follow(inChar string, done map[string]struct{}) []string {
-	if _, ok := done[inChar]; ok {
-		return make([]string, 0)
-	}
-	done[inChar] = struct{}{}
-
-	follow := make(map[string]struct{})
+func (R RuleGroup) follow(inChar string) []string {
 	if inChar == "1" {
 		return []string{"0"}
 	}
-	for _, rule := range R {
-		for i, char := range rule.right {
-			if inChar == string(char) && len(rule.right) > i+1 {
-				for _, val := range R.first(string(rule.right[i+1])) {
-					follow[val] = struct{}{}
+
+	follow := make(map[string]struct{})
+	done := map[string]struct{}{inChar: {}}
+	stack := []string{inChar}
+
+	var findChar string
+	for ; len(stack) > 0; { // stack
+		findChar, stack = stack[0], stack[1:]
+		for _, rule := range R { // rules
+			for i, tmpChar := range rule.right { // rule chars
+				if findChar == "1" {
+					follow["0"] = struct{}{}
 				}
-			} else if len(rule.right) == i+1 && char >= 'A' && char <= 'Z' {
-				//for _, val := range R.follow(rule.left, done) {
-				//	follow[val] = struct{}{}
-				//}
+				if findChar == string(tmpChar) { // matches found S83 A65 B66 a97 b98
+					if len(rule.right) > i+1 { // exists follow
+						for _, val := range R.first(string(rule.right[i+1])) {
+							follow[val] = struct{}{}
+						}
+					} else if len(rule.right) == i+1 {
+						if _, ok := done[rule.left]; !ok {
+							stack = append(stack, string(rule.left))
+						}
+					}
+				}
 			}
 		}
 	}
@@ -269,7 +298,7 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 					}
 
 					if state.isFinal() {
-						for _, follow := range R.follow(state.instances[0].rule.left, make(map[string]struct{})) {
+						for _, follow := range R.follow(state.instances[0].rule.left) {
 							if val, ok := state.action[follow]; ok {
 								if val.action == 'R' {
 									return nil, "RR ERROR"
@@ -299,19 +328,21 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 }
 
 func main() {
-	NT, T, R := readGrammar("./in3.txt")
+	NT, T, R := readGrammar("./in1.txt")
 	solver, err := makeSolver(NT, T, R)
 	if len(err) > 0 {
 		fmt.Println(err)
 	}
 
+	solver.print(NT, T)
 	solver.solve("")
 
 	//fmt.Println( R.follow("1", make(map[string]struct{})))
 
 	fmt.Println("FOLLOW")
 	for _, val := range NT {
-		fmt.Println(val, R.follow(val, make(map[string]struct{})))
+		fmt.Print(val)
+		fmt.Println(R.follow(val))
 	}
 	//
 	//fmt.Println("FIRST")
