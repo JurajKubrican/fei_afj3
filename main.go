@@ -23,91 +23,21 @@ type Rule struct {
 
 type RuleGroup []Rule
 type InstanceGroup []Instance
-type Solver map[string]State
+type Solver []State
 
 type Action struct {
-	goTo   string
+	goTo   int
 	action byte
-	reduce int
 }
 
 type State struct {
 	id        string
+	i         int
 	instances InstanceGroup
 	action    map[string]Action
 }
 
-func (S Solver) solve(str string) bool {
-
-	return true
-}
-
-func (S Solver) print(NT []string, T []string) bool {
-	fmt.Print("[")
-	for _, char := range append(append(T, "0"), NT...) {
-		fmt.Print(" " + char + " ")
-	}
-	fmt.Println("]")
-	for _, state := range S {
-		table := make([]string, len(append(append(T, "0"), NT...)))
-		for ri, char := range append(append(T, "0"), NT...) {
-			if val, ok := state.action[char]; ok {
-				table[ri] = string(val.action) + strconv.Itoa(val.reduce) + val.goTo
-			} else {
-				table[ri] = " x "
-			}
-		}
-		fmt.Println(table)
-	}
-
-	return true
-}
-
-func (state State) makeId() State {
-	var arr []string
-	for _, instance := range state.instances {
-		arr = append(arr, instance.id)
-	}
-	sort.Strings(arr)
-	state.id = strings.Join(arr, "-")
-	return state
-}
-
-func (state State) isFinal() bool {
-	if len(state.instances) == 1 && len(state.instances[0].rule.right) == state.instances[0].dot+1 {
-		return true
-	}
-	return false
-}
-
-func (state State) getSubSet(char string) InstanceGroup {
-	var result InstanceGroup
-	for _, instance := range state.instances {
-		if instance.getNextChar() == char {
-			newInst := Instance{
-				rule: instance.rule,
-				dot:  instance.dot + 1,
-			}.makeId()
-			if newInst.dot <= len(newInst.rule.right) {
-				result = append(result, newInst)
-			}
-		}
-	}
-	return result
-}
-
-func (instance Instance) makeId() Instance {
-	instance.id = strconv.Itoa(instance.rule.id) + "." + strconv.Itoa(instance.dot)
-	return instance
-}
-
-func (instance Instance) getNextChar() string {
-	if instance.dot < len(instance.rule.right) {
-		return string(instance.rule.right[instance.dot])
-	}
-	return ""
-}
-
+/* RULES */
 func (R Rule) makeInstance(index int) Instance {
 	return Instance{
 		rule: R,
@@ -124,7 +54,6 @@ func (R RuleGroup) findRulesFor(char string) RuleGroup {
 	}
 	return result
 }
-
 func (R RuleGroup) first(inChar string) []string {
 	next := make(map[string]struct{})
 	stack := R.findRulesFor(inChar)
@@ -150,7 +79,6 @@ func (R RuleGroup) first(inChar string) []string {
 
 	return result
 }
-
 func (R RuleGroup) follow(inChar string) []string {
 	if inChar == "1" {
 		return []string{"0"}
@@ -190,6 +118,29 @@ func (R RuleGroup) follow(inChar string) []string {
 
 	return result
 }
+func (R RuleGroup) getStateZero() State {
+	zeroInstance := Instance{
+		rule: R[0],
+		dot:  0,
+	}.makeId()
+
+	state := InstanceGroup{zeroInstance}.getFullState(R)
+	state.i = 0
+	fmt.Println(state)
+	return state.makeId()
+}
+
+/* INSTANCES */
+func (instance Instance) makeId() Instance {
+	instance.id = strconv.Itoa(instance.rule.id) + "." + strconv.Itoa(instance.dot)
+	return instance
+}
+func (instance Instance) getNextChar() string {
+	if instance.dot < len(instance.rule.right) {
+		return string(instance.rule.right[instance.dot])
+	}
+	return ""
+}
 
 func (instances InstanceGroup) containsInstance(I Instance) bool {
 	for _, r := range instances {
@@ -199,7 +150,6 @@ func (instances InstanceGroup) containsInstance(I Instance) bool {
 	}
 	return false
 }
-
 func (instances InstanceGroup) getFullState(allRules RuleGroup) State {
 
 	var result = State{
@@ -228,15 +178,108 @@ func (instances InstanceGroup) getFullState(allRules RuleGroup) State {
 	return result.makeId()
 }
 
-func getStateZero(allRules []Rule) State {
-	zeroInstance := Instance{
-		rule: allRules[0],
-		dot:  0,
-	}.makeId()
+/* STATES */
+func (state State) makeId() State {
+	var arr []string
+	for _, instance := range state.instances {
+		arr = append(arr, instance.id)
+	}
+	sort.Strings(arr)
+	state.id = strings.Join(arr, "-")
+	return state
+}
+func (state State) isFinal() bool {
+	if len(state.instances) == 1 && len(state.instances[0].rule.right) == state.instances[0].dot+1 {
+		return true
+	}
+	return false
+}
+func (state State) getSubSet(char string) InstanceGroup {
+	var result InstanceGroup
+	for _, instance := range state.instances {
+		if instance.getNextChar() == char {
+			newInst := Instance{
+				rule: instance.rule,
+				dot:  instance.dot + 1,
+			}.makeId()
+			if newInst.dot <= len(newInst.rule.right) {
+				result = append(result, newInst)
+			}
+		}
+	}
+	return result
+}
 
-	state := InstanceGroup{zeroInstance}.getFullState(allRules)
-	fmt.Println(state)
-	return state.makeId()
+/* SOLVER */
+func (S Solver) Len() int {
+	return len(S)
+}
+func (S Solver) Swap(i, j int) {
+	S[i], S[j] = S[j], S[i]
+}
+func (S Solver) Less(i, j int) bool {
+	return S[i].i < S[j].i
+}
+func (S Solver) solve(str string) bool {
+
+	return true
+}
+func (S Solver) print(NT []string, T []string) bool {
+	fmt.Print("   ")
+	for _, char := range append(append(T, "0"), NT...) {
+		fmt.Print(" " + char + "  ")
+	}
+	fmt.Println()
+
+	for _, state := range S {
+		fmt.Printf("%2d", state.i)
+		for _, char := range append(append(T, "0"), NT...) {
+			if val, ok := state.action[char]; ok {
+				fmt.Printf(" %2d%s", val.goTo, string(val.action))
+			} else {
+				fmt.Print("  . ")
+			}
+		}
+		fmt.Println()
+	}
+
+	return true
+}
+
+/* UTILS */
+
+func readLines(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
+}
+func writeLines(lines []string, path string) error {
+	file, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	w := bufio.NewWriter(file)
+	for _, line := range lines {
+		fmt.Fprintln(w, line)
+	}
+	return w.Flush()
+}
+func readKeyboardLine() string {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Print("Enter text: ")
+	text, _ := reader.ReadString('\n')
+	return text
 }
 
 func readGrammar(file string) ([]string, []string, RuleGroup) {
@@ -274,11 +317,12 @@ func readGrammar(file string) ([]string, []string, RuleGroup) {
 }
 
 func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
-	stateZero := getStateZero(R)
-	var states = Solver{stateZero.id: stateZero}
+	stateZero := R.getStateZero()
+	var states = map[string]State{stateZero.id: stateZero}
 	stack := make([]State, 1)
 	stack[0] = stateZero
 
+	i := 1
 	var err string
 	var state State
 	for ; len(stack) > 0; {
@@ -287,7 +331,9 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 			subset := state.getSubSet(char)
 			if len(subset) > 0 {
 				newState := subset.getFullState(R)
-				if _, ok := states[newState.id]; !ok {
+				newState.i = i
+				i += 1
+				if _, ok := states[newState.id]; !ok { // is new
 
 					// GOTO / ACTION
 					var action byte
@@ -297,7 +343,7 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 						action = 'S'
 					}
 
-					if state.isFinal() {
+					if newState.isFinal() {
 						for _, follow := range R.follow(state.instances[0].rule.left) {
 							if val, ok := state.action[follow]; ok {
 								if val.action == 'R' {
@@ -307,14 +353,14 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 								}
 							}
 							state.action[follow] = Action{
-								reduce: state.instances[0].rule.id,
+								goTo:   state.instances[0].rule.id,
 								action: 'R',
 							}
 						}
 					}
 
 					state.action[char] = Action{
-						goTo:   newState.id,
+						goTo:   newState.i,
 						action: action,
 					}
 					stack = append(stack, newState)
@@ -324,7 +370,19 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 		}
 	}
 
-	return states, err
+	keys := make([]string, len(states))
+	i = 0
+	for key := range states {
+		keys[i] = key
+		i += 1
+	}
+	result := make(Solver, 0)
+	for _, key := range keys {
+		result = append(result, states[key])
+	}
+	sort.Sort(result)
+
+	return result, err
 }
 
 func main() {
@@ -354,35 +412,6 @@ func main() {
 	for _, state := range solver {
 		fmt.Println(state)
 	}
-}
 
-/* UTILS */
-
-func readLines(path string) ([]string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return lines, scanner.Err()
-}
-
-func writeLines(lines []string, path string) error {
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	w := bufio.NewWriter(file)
-	for _, line := range lines {
-		fmt.Fprintln(w, line)
-	}
-	return w.Flush()
+	//readKeyboardLine()
 }
