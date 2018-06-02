@@ -187,7 +187,7 @@ func (state State) getId() string {
 	return strings.Join(arr, "-")
 }
 func (state State) isFinal() bool {
-	if len(state.instances) == 1 && len(state.instances[0].rule.right) == state.instances[0].dot+1 {
+	if len(state.instances) == 1 && len(state.instances[0].rule.right) == state.instances[0].dot {
 		return true
 	}
 	return false
@@ -229,6 +229,7 @@ func (S Solver) solve(str string) bool {
 	return true
 }
 func (S Solver) print(NT []string, T []string) bool {
+	sort.Strings(NT)
 	fmt.Print("   ")
 	for _, char := range append(append(T, "0"), NT...) {
 		fmt.Print(" " + char + "  ")
@@ -335,46 +336,50 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 			subset := state.getSubSet(char)
 			if len(subset) > 0 {
 				newState := subset.getFullState(R)
-				newState.i = i
-				i += 1
 				if _, ok := states[newState.getId()]; !ok { // is new
+					newState.i = i
+					i += 1
 
-					// GOTO / ACTION
-					var action byte
-					if char[0] >= 'A' && char[0] <= 'Z' {
-						action = 'N'
-					} else {
-						action = 'S'
-					}
-
-					if newState.isFinal() { // is final state is created
-						for _, follow := range R.follow(state.instances[0].rule.left) {
-							if val, ok := state.action[follow]; ok {
-								if val.action == 'R' {
-									return nil, "RR ERROR"
-								} else {
-									return nil, "SR ERROR"
-								}
-							}
-							state.action[follow] = Action{ // state from which it is created
-								goTo: state.instances[0].rule.id,
-								action: 'R',
-							}
-						}
-						if newState.isAcc() {
-							state.action["0"] = Action{
-								goTo:   -1,
-								action: 'A',
-							}
-						}
-					}
-
-					state.action[char] = Action{
-						goTo:   newState.i,
-						action: action,
-					}
 					stack = append(stack, newState)
 					states[newState.getId()] = newState
+				}
+				// GOTO / ACTION
+				var action byte
+				if char[0] >= 'A' && char[0] <= 'Z' {
+					action = 'N'
+				} else {
+					action = 'S'
+				}
+
+				newState = states[newState.getId()]
+				state.action[char] = Action{
+					goTo:   newState.i,
+					action: action,
+				}
+
+			}
+		}
+	}
+
+	for _, state := range states {
+		if state.isFinal() { // is final state is created
+			for _, follow := range R.follow(state.instances[0].rule.left) {
+				if val, ok := state.action[follow]; ok {
+					if val.action == 'R' {
+						return nil, "RR ERROR"
+					} else {
+						return nil, "SR ERROR"
+					}
+				}
+				state.action[follow] = Action{ // state from which it is created
+					goTo: state.instances[0].rule.id,
+					action: 'R',
+				}
+			}
+			if state.isAcc() {
+				state.action["0"] = Action{
+					goTo:   -1,
+					action: 'A',
 				}
 			}
 		}
@@ -396,7 +401,7 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 }
 
 func main() {
-	NT, T, R := readGrammar("./in1.txt")
+	NT, T, R := readGrammar("./in3.txt")
 	solver, err := makeSolver(NT, T, R)
 	if len(err) > 0 {
 		fmt.Println(err)
@@ -412,16 +417,16 @@ func main() {
 		fmt.Print(val)
 		fmt.Println(R.follow(val))
 	}
-	//
-	//fmt.Println("FIRST")
-	//for _, val := range NT {
-	//	fmt.Println(val, R.first(val))
-	//}
 
-	fmt.Println(NT, T, R, "\n=========")
-	for _, state := range solver {
-		fmt.Println(state)
+	fmt.Println("FIRST")
+	for _, val := range NT {
+		fmt.Println(val, R.first(val))
 	}
+	//
+	//fmt.Println(NT, T, R, "\n=========")
+	//for _, state := range solver {
+	//	fmt.Println(state)
+	//}
 
 	//readKeyboardLine()
 }
