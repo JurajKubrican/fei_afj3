@@ -31,7 +31,6 @@ type Action struct {
 }
 
 type State struct {
-	id        string
 	i         int
 	instances InstanceGroup
 	action    map[string]Action
@@ -127,7 +126,7 @@ func (R RuleGroup) getStateZero() State {
 	state := InstanceGroup{zeroInstance}.getFullState(R)
 	state.i = 0
 	fmt.Println(state)
-	return state.makeId()
+	return state
 }
 
 /* INSTANCES */
@@ -175,18 +174,17 @@ func (instances InstanceGroup) getFullState(allRules RuleGroup) State {
 		}
 	}
 
-	return result.makeId()
+	return result
 }
 
 /* STATES */
-func (state State) makeId() State {
+func (state State) getId() string {
 	var arr []string
 	for _, instance := range state.instances {
 		arr = append(arr, instance.id)
 	}
 	sort.Strings(arr)
-	state.id = strings.Join(arr, "-")
-	return state
+	return strings.Join(arr, "-")
 }
 func (state State) isFinal() bool {
 	if len(state.instances) == 1 && len(state.instances[0].rule.right) == state.instances[0].dot+1 {
@@ -318,7 +316,7 @@ func readGrammar(file string) ([]string, []string, RuleGroup) {
 
 func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 	stateZero := R.getStateZero()
-	var states = map[string]State{stateZero.id: stateZero}
+	var states = map[string]State{stateZero.getId(): stateZero}
 	stack := make([]State, 1)
 	stack[0] = stateZero
 
@@ -333,7 +331,7 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 				newState := subset.getFullState(R)
 				newState.i = i
 				i += 1
-				if _, ok := states[newState.id]; !ok { // is new
+				if _, ok := states[newState.getId()]; !ok { // is new
 
 					// GOTO / ACTION
 					var action byte
@@ -344,7 +342,7 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 					}
 
 					if newState.isFinal() {
-						for _, follow := range R.follow(state.instances[0].rule.left) {
+						for _, follow := range R.follow(newState.instances[0].rule.left) {
 							if val, ok := state.action[follow]; ok {
 								if val.action == 'R' {
 									return nil, "RR ERROR"
@@ -352,6 +350,7 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 									return nil, "SR ERROR"
 								}
 							}
+
 							state.action[follow] = Action{
 								goTo:   state.instances[0].rule.id,
 								action: 'R',
@@ -364,7 +363,7 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 						action: action,
 					}
 					stack = append(stack, newState)
-					states[newState.id] = newState
+					states[newState.getId()] = newState
 				}
 			}
 		}
