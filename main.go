@@ -192,6 +192,12 @@ func (state State) isFinal() bool {
 	}
 	return false
 }
+func (state State) isAcc() bool {
+	if len(state.instances) == 1 && state.instances[0].rule.left == "1" && state.instances[0].rule.right == "S" && state.instances[0].dot == 1 {
+		return true
+	}
+	return false
+}
 func (state State) getSubSet(char string) InstanceGroup {
 	var result InstanceGroup
 	for _, instance := range state.instances {
@@ -341,8 +347,8 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 						action = 'S'
 					}
 
-					if newState.isFinal() {
-						for _, follow := range R.follow(newState.instances[0].rule.left) {
+					if newState.isFinal() { // is final state is created
+						for _, follow := range R.follow(state.instances[0].rule.left) {
 							if val, ok := state.action[follow]; ok {
 								if val.action == 'R' {
 									return nil, "RR ERROR"
@@ -350,10 +356,15 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 									return nil, "SR ERROR"
 								}
 							}
-
-							state.action[follow] = Action{
-								goTo:   state.instances[0].rule.id,
+							state.action[follow] = Action{ // state from which it is created
+								goTo: state.instances[0].rule.id,
 								action: 'R',
+							}
+						}
+						if newState.isAcc() {
+							state.action["0"] = Action{
+								goTo:   -1,
+								action: 'A',
 							}
 						}
 					}
