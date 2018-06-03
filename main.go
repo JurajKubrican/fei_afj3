@@ -229,36 +229,43 @@ func (S Solver) Swap(i, j int) {
 func (S Solver) Less(i, j int) bool {
 	return S[i].i < S[j].i
 }
-func (S Solver) solve(input string) bool {
+func (S Solver) solve(input string, R RuleGroup) bool {
 
-	stack := []StackAction{{char: "$", state: -1}}
+	stack := []StackAction{{char: "0", state: 0}}
 	curSate := 0
-	top := input[0:0]
+	input = input + "0"
+	top := input[0:1]
 
 	for ; ; {
-		if action, ok := S[curSate].action[top]; !ok { // is new
+		if action, ok := S[curSate].action[top]; ok { // is new
 			switch action.action {
 			case 'S':
 				curSate = action.goTo
 				stack = append(stack, StackAction{char: top, state: curSate})
-				top, input = input[0:0], input[1:]
+				top, input = input[1:2], input[1:]
 				break
 
 			case 'R':
-				
+				rule := R[action.goTo]
+				stack = stack[:len(stack)-len(rule.right)]
+				newAction := StackAction{
+					char:  rule.left,
+					state: S[stack[len(stack)-1].state].action[rule.left].goTo}
+				stack = append(stack, newAction)
+				curSate = stack[len(stack)-1].state
+				top = input[0:1]
 				break
 
-			case 'N':
-				break
-
+			case 'A':
+				return true
 			}
 
 		} else {
 			return false
 		}
+		fmt.Println(stack)
 	}
 
-	return true
 }
 
 func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
@@ -431,27 +438,28 @@ func readGrammar(file string) ([]string, []string, RuleGroup) {
 }
 
 func main() {
-	NT, T, R := readGrammar("./in2.txt")
+	NT, T, R := readGrammar("./in3.txt")
 	solver, err := makeSolver(NT, T, R)
 	if len(err) > 0 {
 		fmt.Println(err)
 	}
 
 	solver.print(NT, T)
-	solver.solve("")
+	result := solver.solve("abaabccb", R)
 
+	fmt.Println("aabcb", result)
 	//fmt.Println( R.follow("1", make(map[string]struct{})))
 
-	fmt.Println("FOLLOW")
-	for _, val := range NT {
-		fmt.Print(val)
-		fmt.Println(R.follow(val))
-	}
-
-	fmt.Println("FIRST")
-	for _, val := range NT {
-		fmt.Println(val, R.first(val))
-	}
+	//fmt.Println("FOLLOW")
+	//for _, val := range NT {
+	//	fmt.Print(val)
+	//	fmt.Println(R.follow(val))
+	//}
+	//
+	//fmt.Println("FIRST")
+	//for _, val := range NT {
+	//	fmt.Println(val, R.first(val))
+	//}
 	//
 	//fmt.Println(NT, T, R, "\n=========")
 	//for _, state := range solver {
