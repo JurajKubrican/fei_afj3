@@ -123,15 +123,33 @@ func (R RuleGroup) follow(inChar string) []string {
 	return result
 }
 func (R RuleGroup) getStateZero() State {
-	zeroInstance := Instance{
-		rule: R[0],
-		dot:  0,
-	}.makeId()
+	var zeroInstance Instance
+	if R[0].right == "0" {
+		zeroInstance = Instance{
+			rule: R[0],
+			dot:  1,
+		}.makeId()
+	} else {
+		zeroInstance = Instance{
+			rule: R[0],
+			dot:  0,
+		}.makeId()
+	}
 
 	state := InstanceGroup{zeroInstance}.getFullState(R)
 	state.i = 0
 	fmt.Println(state)
 	return state
+}
+func (R RuleGroup) printResult() {
+	if len(R) == 0 {
+		fmt.Println("Nepatri do jazyka")
+	} else {
+		for i := len(R) - 1; i >= 0; i -= 1 {
+			fmt.Println(R[i].left + "->" + R[i].right)
+		}
+	}
+
 }
 
 /* INSTANCES */
@@ -170,7 +188,12 @@ func (instances InstanceGroup) getFullState(allRules RuleGroup) State {
 	for ; len(stack) > 0; {
 		char, stack = stack[0], stack[1:]
 		for _, rule := range allRules.findRulesFor(char) {
-			tmpInstance := rule.makeInstance(0)
+			var tmpInstance Instance
+			if rule.right == "0" {
+				tmpInstance = rule.makeInstance(1)
+			} else {
+				tmpInstance = rule.makeInstance(0)
+			}
 			if !result.instances.containsInstance(tmpInstance) {
 				result.instances = append(result.instances, tmpInstance)
 				stack = append(stack, tmpInstance.getNextChar())
@@ -229,8 +252,9 @@ func (S Solver) Swap(i, j int) {
 func (S Solver) Less(i, j int) bool {
 	return S[i].i < S[j].i
 }
-func (S Solver) solve(input string, R RuleGroup) bool {
+func (S Solver) solve(input string, R RuleGroup) RuleGroup {
 
+	var result RuleGroup
 	stack := []StackAction{{char: "0", state: 0}}
 	curSate := 0
 	input = input + "0"
@@ -254,14 +278,15 @@ func (S Solver) solve(input string, R RuleGroup) bool {
 				stack = append(stack, newAction)
 				curSate = stack[len(stack)-1].state
 				top = input[0:1]
+				result = append(result, rule)
 				break
 
 			case 'A':
-				return true
+				return result
 			}
 
 		} else {
-			return false
+			return result
 		}
 		fmt.Println(stack)
 	}
@@ -438,18 +463,18 @@ func readGrammar(file string) ([]string, []string, RuleGroup) {
 }
 
 func main() {
-	NT, T, R := readGrammar("./in3.txt")
+	NT, T, R := readGrammar("./in2.txt")
 	solver, err := makeSolver(NT, T, R)
 	if len(err) > 0 {
 		fmt.Println(err)
 	}
 
 	solver.print(NT, T)
-	result := solver.solve("abaabccb", R)
+	result := solver.solve("aabcb", R)
 
-	fmt.Println("aabcb", result)
+	result.printResult()
 	//fmt.Println( R.follow("1", make(map[string]struct{})))
-
+	//
 	//fmt.Println("FOLLOW")
 	//for _, val := range NT {
 	//	fmt.Print(val)
