@@ -61,6 +61,7 @@ func (R RuleGroup) findRulesFor(char string) RuleGroup {
 func (R RuleGroup) first(inChar string) []string {
 	next := make(map[string]struct{})
 	stack := R.findRulesFor(inChar)
+	done := make(map[int]struct{})
 	if len(stack) == 0 {
 		return []string{inChar}
 	}
@@ -73,7 +74,10 @@ func (R RuleGroup) first(inChar string) []string {
 		if len(rules) == 0 {
 			next[char] = struct{}{}
 		} else {
-			stack = append(stack, rules...)
+			if _, ok := done[rule.id]; !ok {
+				stack = append(stack, rules...)
+				done[rule.id] = struct{}{}
+			}
 		}
 	}
 	var result []string
@@ -101,15 +105,25 @@ func (R RuleGroup) follow(inChar string) []string {
 					follow["0"] = struct{}{}
 				}
 				if findChar == string(tmpChar) { // matches found S83 A65 B66 a97 b98
-					if len(rule.right) > i+1 { // exists follow
-						for _, val := range R.first(string(rule.right[i+1])) {
-							follow[val] = struct{}{}
-						}
-					} else if len(rule.right) == i+1 {
+					if len(rule.right) == i+1 { // final char -> follow of previous
 						if _, ok := done[rule.left]; !ok {
 							stack = append(stack, string(rule.left))
 						}
 					}
+					for j := i + 1; len(rule.right) > j; j++ {
+						hasEps := false
+						for _, val := range R.first(string(rule.right[j])) { //add all firsts of
+							if val == "0" {
+								hasEps = true
+							} else {
+								follow[val] = struct{}{}
+							}
+						}
+						if !hasEps {
+							break
+						}
+					}
+
 				}
 			}
 		}
@@ -258,42 +272,57 @@ func (S Solver) Less(i, j int) bool {
 func (S Solver) solve(input string, R RuleGroup) RuleGroup {
 
 	var result RuleGroup
-	stack := []StackAction{{char: "0", state: 0}}
+	input += "0"
+	stack := []StackAction{{char: input[0:1], state: 0}}
 	curSate := 0
-	input = input + "0"
-	top := input[0:1]
 
 	for ; ; {
-		if action, ok := S[curSate].action[top]; ok { // is new
+		top := input[0:1]
+		if action, ok := S[curSate].action[top]; ok {
 			switch action.action {
 			case 'S':
 				curSate = action.goTo
 				stack = append(stack, StackAction{char: top, state: curSate})
-				top, input = input[1:2], input[1:]
+				input = input[1:]
 				break
 
 			case 'R':
 				rule := R[action.goTo]
-				stack = stack[:len(stack)-len(rule.right)]
+				if rule.right != "0" {
+					stack = stack[:len(stack)-len(rule.right)] // shorten stack
+				}
+
 				newAction := StackAction{
 					char:  rule.left,
-					state: S[stack[len(stack)-1].state].action[rule.left].goTo}
+					state: S[stack[len(stack)-1].state].action[rule.left].goTo,
+				}
+				top = stack[len(stack)-1].char
 				stack = append(stack, newAction)
+
 				curSate = stack[len(stack)-1].state
-				top = input[0:1]
+
 				result = append(result, rule)
 				break
 
 			case 'A':
-				return result
+				if top == "0" {
+					return result
+				} else {
+					return RuleGroup{}
+				}
 			}
 
 		} else {
-			return result
+			break
 		}
 		fmt.Println(stack)
 	}
 
+	if len(stack) == 1 {
+		return result
+	} else {
+		return RuleGroup{}
+	}
 }
 
 func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
@@ -341,9 +370,9 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 				for _, follow := range R.follow(state.instances[finalRule].rule.left) {
 					if val, ok := state.action[follow]; ok {
 						if val.action == 'R' {
-							return nil, "RR ERROR"
+							return nil, "Konflikt redukcia-redukcia"
 						} else {
-							return nil, "SR ERROR"
+							return nil, "Konflikt presun-redukcia"
 						}
 					}
 					state.action[follow] = Action{ // state from which it is created
@@ -416,22 +445,10 @@ func readLines(path string) ([]string, error) {
 	}
 	return lines, scanner.Err()
 }
-func writeLines(lines []string, path string) error {
-	file, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
 
-	w := bufio.NewWriter(file)
-	for _, line := range lines {
-		fmt.Fprintln(w, line)
-	}
-	return w.Flush()
-}
-func readKeyboardLine() string {
+func readKeyboardLine(query string) string {
 	reader := bufio.NewReader(os.Stdin)
-	fmt.Print("Enter text: ")
+	fmt.Print(query)
 	text, _ := reader.ReadString('\n')
 	return text
 }
@@ -471,28 +488,34 @@ func readGrammar(file string) ([]string, []string, RuleGroup) {
 }
 
 func main() {
-	NT, T, R := readGrammar("./in3.txt")
+	NT, T, R := readGrammar("./test6.txt")
+
+	fmt.Println("FIRST")
+	for _, val := range NT {
+		fmt.Println(val, R.first(val))
+	}
+	fmt.Println("FOLLOW")
+	for _, val := range NT {
+		fmt.Print(val)
+		fmt.Println(R.follow(val))
+	}
+
 	solver, err := makeSolver(NT, T, R)
 	if len(err) > 0 {
 		fmt.Println(err)
+		return
 	}
 
 	solver.print(NT, T)
-	result := solver.solve("abaabccb", R)
 
-	result.printResult()
+	query := "Zadajte slovo, (iba enter pre ukoncenie): "
+	for text := readKeyboardLine(query); len(text) > 1; text = readKeyboardLine(query) {
+		fmt.Print(text[:len(text)-1])
+		result := solver.solve(text[:len(text)-1], R)
+		result.printResult()
+	}
+
 	//fmt.Println( R.follow("1", make(map[string]struct{})))
-	//
-	//fmt.Println("FOLLOW")
-	//for _, val := range NT {
-	//	fmt.Print(val)
-	//	fmt.Println(R.follow(val))
-	//}
-	//
-	//fmt.Println("FIRST")
-	//for _, val := range NT {
-	//	fmt.Println(val, R.first(val))
-	//}
 	//
 	//fmt.Println(NT, T, R, "\n=========")
 	//for _, state := range solver {
