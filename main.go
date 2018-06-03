@@ -152,7 +152,6 @@ func (R RuleGroup) getStateZero() State {
 
 	state := InstanceGroup{zeroInstance}.getFullState(R)
 	state.i = 0
-	fmt.Println(state)
 	return state
 }
 func (R RuleGroup) printResult() {
@@ -315,7 +314,7 @@ func (S Solver) solve(input string, R RuleGroup) RuleGroup {
 		} else {
 			break
 		}
-		fmt.Println(stack)
+		//fmt.Println(stack)
 	}
 
 	if len(stack) == 1 {
@@ -450,7 +449,7 @@ func readKeyboardLine(query string) string {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Print(query)
 	text, _ := reader.ReadString('\n')
-	return text
+	return strings.TrimSpace(text[:len(text)-1])
 }
 
 func readGrammar(file string) ([]string, []string, RuleGroup) {
@@ -488,17 +487,24 @@ func readGrammar(file string) ([]string, []string, RuleGroup) {
 }
 
 func main() {
-	NT, T, R := readGrammar("./test6.txt")
+	var file string
+	if len(os.Args) < 2 {
+		file = readKeyboardLine("Zadajte meno vstupneho suboru:")
+		//file = "in1.txt"
+	} else {
+		file = os.Args[1]
+	}
+	NT, T, R := readGrammar(file)
 
-	fmt.Println("FIRST")
-	for _, val := range NT {
-		fmt.Println(val, R.first(val))
-	}
-	fmt.Println("FOLLOW")
-	for _, val := range NT {
-		fmt.Print(val)
-		fmt.Println(R.follow(val))
-	}
+	//fmt.Println("FIRST")
+	//for _, val := range NT {
+	//	fmt.Println(val, R.first(val))
+	//}
+	//fmt.Println("FOLLOW")
+	//for _, val := range NT {
+	//	fmt.Print(val)
+	//	fmt.Println(R.follow(val))
+	//}
 
 	solver, err := makeSolver(NT, T, R)
 	if len(err) > 0 {
@@ -506,21 +512,12 @@ func main() {
 		return
 	}
 
-	solver.print(NT, T)
+	//solver.print(NT, T)
 
 	query := "Zadajte slovo, (iba enter pre ukoncenie): "
 	for text := readKeyboardLine(query); len(text) > 1; text = readKeyboardLine(query) {
-		fmt.Print(text[:len(text)-1])
-		result := solver.solve(text[:len(text)-1], R)
+		result := solver.solve(text, R)
 		result.printResult()
 	}
-
-	//fmt.Println( R.follow("1", make(map[string]struct{})))
-	//
-	//fmt.Println(NT, T, R, "\n=========")
-	//for _, state := range solver {
-	//	fmt.Println(state)
-	//}
-
-	//readKeyboardLine()
+	
 }
