@@ -214,11 +214,14 @@ func (state State) getId() string {
 	sort.Strings(arr)
 	return strings.Join(arr, "-")
 }
-func (state State) isFinal() bool {
-	if len(state.instances) == 1 && len(state.instances[0].rule.right) == state.instances[0].dot {
-		return true
+func (state State) getFinal() ([]int, bool) {
+	var result []int
+	for index, instance := range state.instances {
+		if len(instance.rule.right) == instance.dot {
+			result = append(result, index)
+		}
 	}
-	return false
+	return result, len(result) > 0
 }
 func (state State) isAcc() bool {
 	if len(state.instances) == 1 && state.instances[0].rule.left == "1" && state.instances[0].rule.right == "S" && state.instances[0].dot == 1 {
@@ -331,27 +334,32 @@ func makeSolver(NT []string, T []string, R RuleGroup) (Solver, string) {
 		}
 	}
 
-	for _, state := range states {
-		if state.isFinal() { // is final state is created
-			for _, follow := range R.follow(state.instances[0].rule.left) {
-				if val, ok := state.action[follow]; ok {
-					if val.action == 'R' {
-						return nil, "RR ERROR"
-					} else {
-						return nil, "SR ERROR"
+	for _, state = range states {
+
+		if finalRules, hasFinal := state.getFinal(); hasFinal { // is final state is created
+			for _, finalRule := range finalRules {
+				for _, follow := range R.follow(state.instances[finalRule].rule.left) {
+					if val, ok := state.action[follow]; ok {
+						if val.action == 'R' {
+							return nil, "RR ERROR"
+						} else {
+							return nil, "SR ERROR"
+						}
+					}
+					state.action[follow] = Action{ // state from which it is created
+						goTo: state.instances[finalRule].rule.id,
+						action: 'R',
 					}
 				}
-				state.action[follow] = Action{ // state from which it is created
-					goTo: state.instances[0].rule.id,
-					action: 'R',
+				if state.isAcc() {
+					state.action["0"] = Action{
+						goTo:   -1,
+						action: 'A',
+					}
 				}
+
 			}
-			if state.isAcc() {
-				state.action["0"] = Action{
-					goTo:   -1,
-					action: 'A',
-				}
-			}
+
 		}
 	}
 
@@ -463,14 +471,14 @@ func readGrammar(file string) ([]string, []string, RuleGroup) {
 }
 
 func main() {
-	NT, T, R := readGrammar("./in2.txt")
+	NT, T, R := readGrammar("./in3.txt")
 	solver, err := makeSolver(NT, T, R)
 	if len(err) > 0 {
 		fmt.Println(err)
 	}
 
 	solver.print(NT, T)
-	result := solver.solve("aabcb", R)
+	result := solver.solve("abaabccb", R)
 
 	result.printResult()
 	//fmt.Println( R.follow("1", make(map[string]struct{})))
