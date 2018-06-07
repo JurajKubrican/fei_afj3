@@ -515,9 +515,9 @@ func main() {
 	//solver.print(NT, T)
 
 	query := "Zadajte slovo, (iba enter pre ukoncenie): "
-	for text := readKeyboardLine(query); len(text) > 1; text = readKeyboardLine(query) {
+	for text := readKeyboardLine(query); len(text) > 0; text = readKeyboardLine(query) {
 		result := solver.solve(text, R)
 		result.printResult()
 	}
-	
+
 }
